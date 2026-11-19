@@ -15,9 +15,9 @@ val pdsVersion: String = if (rawTag.isNotEmpty()) {
             .start()
         process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
         val out = process.inputStream.bufferedReader().readText().trim().removePrefix("v")
-        if (out.isNotEmpty()) out else "0.2.1"
+        if (out.isNotEmpty()) out else "1.0.0"
     } catch (_: Exception) {
-        "0.2.1"
+        "1.0.0"
     }
 }
 
