@@ -1,6 +1,6 @@
+use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jint, jstring};
-use jni::JNIEnv;
 use pds::{
     ClientAuthenticator, ClientId, DiskStorage, IpcRequest, IpcResponse, IpcServerHandler,
     IpcSessionManager, Permission,
@@ -71,11 +71,9 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson(
     let request: IpcRequest = match serde_json::from_str(&req_str) {
         Ok(req) => req,
         Err(e) => {
-            let err_json = serde_json::to_string(&IpcResponse::Error(format!(
-                "Invalid JSON request: {}",
-                e
-            )))
-            .unwrap();
+            let err_json =
+                serde_json::to_string(&IpcResponse::Error(format!("Invalid JSON request: {}", e)))
+                    .unwrap();
             return env.new_string(err_json).unwrap().into_raw();
         }
     };
@@ -84,10 +82,9 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson(
     let engine = match guard.as_mut() {
         Some(eng) => eng,
         None => {
-            let err_json = serde_json::to_string(&IpcResponse::Error(
-                "PDS Engine is not initialized".into(),
-            ))
-            .unwrap();
+            let err_json =
+                serde_json::to_string(&IpcResponse::Error("PDS Engine is not initialized".into()))
+                    .unwrap();
             return env.new_string(err_json).unwrap().into_raw();
         }
     };
@@ -106,7 +103,10 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson(
 
     let response = handler.handle_request(request, peer_pid);
     let resp_str = serde_json::to_string(&response).unwrap_or_else(|e| {
-        format!(r#"{{"status":"Error","payload":"Failed to serialize response: {}"}}"#, e)
+        format!(
+            r#"{{"status":"Error","payload":"Failed to serialize response: {}"}}"#,
+            e
+        )
     });
 
     env.new_string(resp_str).unwrap().into_raw()
@@ -125,7 +125,10 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_registerClient(
     };
 
     let mut key_bytes = [0u8; 32];
-    if env.get_byte_array_region(&public_key, 0, bytemuck_i8_slice(&mut key_bytes)).is_err() {
+    if env
+        .get_byte_array_region(&public_key, 0, bytemuck_i8_slice(&mut key_bytes))
+        .is_err()
+    {
         return env.new_string("").unwrap().into_raw();
     }
 
@@ -168,13 +171,27 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_approveClient(
     let mut perm_set = BTreeSet::new();
     for p in perms {
         match p.as_str() {
-            "ReadEntities" => { perm_set.insert(Permission::ReadEntities); }
-            "WriteEntities" => { perm_set.insert(Permission::WriteEntities); }
-            "ReadBlobs" => { perm_set.insert(Permission::ReadBlobs); }
-            "WriteBlobs" => { perm_set.insert(Permission::WriteBlobs); }
-            "ReadHistory" => { perm_set.insert(Permission::ReadHistory); }
-            "ReadCryptoKeys" => { perm_set.insert(Permission::ReadCryptoKeys); }
-            "ManageCryptoKeys" => { perm_set.insert(Permission::ManageCryptoKeys); }
+            "ReadEntities" => {
+                perm_set.insert(Permission::ReadEntities);
+            }
+            "WriteEntities" => {
+                perm_set.insert(Permission::WriteEntities);
+            }
+            "ReadBlobs" => {
+                perm_set.insert(Permission::ReadBlobs);
+            }
+            "WriteBlobs" => {
+                perm_set.insert(Permission::WriteBlobs);
+            }
+            "ReadHistory" => {
+                perm_set.insert(Permission::ReadHistory);
+            }
+            "ReadCryptoKeys" => {
+                perm_set.insert(Permission::ReadCryptoKeys);
+            }
+            "ManageCryptoKeys" => {
+                perm_set.insert(Permission::ManageCryptoKeys);
+            }
             _ => {}
         }
     }
