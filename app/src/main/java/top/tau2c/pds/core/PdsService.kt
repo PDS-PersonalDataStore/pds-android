@@ -5,7 +5,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
+import android.os.RemoteCallbackList
 import android.util.Log
+import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 class PdsService : Service() {
 
@@ -16,6 +19,9 @@ class PdsService : Service() {
 
     private var isInitialized = false
 
+    private val callbackList = RemoteCallbackList<IPdsChangeListener>()
+    private val listenerFilters = ConcurrentHashMap<IBinder, String>()
+
     private val binder = object : IPdsService.Stub() {
         override fun executeRequest(requestJson: String?): String {
             enforceCallingPermission()
@@ -23,7 +29,12 @@ class PdsService : Service() {
                 return """{"status":"Error","payload":"Empty request payload"}"""
             }
             val callingUid = Binder.getCallingUid()
-            return NativePds.handleIpcRequestJson(requestJson, callingUid)
+            val responseJson = NativePds.handleIpcRequestJson(requestJson, callingUid)
+
+            // If request is a modifying operation (put/delete), notify subscribers
+            notifyChangeIfModifying(requestJson, responseJson)
+
+            return responseJson
         }
 
         override fun registerClient(clientName: String?, publicKey: ByteArray?): String {
@@ -44,6 +55,23 @@ class PdsService : Service() {
 
         override fun isReady(): Boolean {
             return isInitialized
+        }
+
+        override fun registerChangeListener(filterJson: String?, listener: IPdsChangeListener?) {
+            enforceCallingPermission()
+            if (listener == null) return
+            val filter = filterJson ?: "{}"
+            listenerFilters[listener.asBinder()] = filter
+            callbackList.register(listener)
+            Log.d(TAG, "Registered change listener with filter: $filter")
+        }
+
+        override fun unregisterChangeListener(listener: IPdsChangeListener?) {
+            enforceCallingPermission()
+            if (listener == null) return
+            listenerFilters.remove(listener.asBinder())
+            callbackList.unregister(listener)
+            Log.d(TAG, "Unregistered change listener")
         }
     }
 
@@ -73,6 +101,65 @@ class PdsService : Service() {
         val permissionResult = checkPermission(PERMISSION_ACCESS_PDS, callingPid, callingUid)
         if (permissionResult != PackageManager.PERMISSION_GRANTED) {
             throw SecurityException("Calling app (UID: $callingUid) does not have permission $PERMISSION_ACCESS_PDS")
+        }
+    }
+
+    private fun notifyChangeIfModifying(requestJson: String, responseJson: String) {
+        try {
+            val req = JSONObject(requestJson)
+            val action = req.optString("action", "")
+            if (action != "put" && action != "delete" && action != "put_blob") {
+                return
+            }
+
+            val resp = JSONObject(responseJson)
+            if (resp.optString("status") != "Success" && resp.optString("status") != "success") {
+                return
+            }
+
+            val entityType = req.optString("entity_type", if (action == "put_blob") "blob" else "*")
+            val recordId = resp.optString("payload", "")
+
+            val event = JSONObject().apply {
+                put("action", action)
+                put("entity_type", entityType)
+                put("id", recordId)
+                put("timestamp_ms", System.currentTimeMillis())
+            }
+            val eventsArray = """[${event}]"""
+
+            dispatchChangeEvents(entityType, eventsArray)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to process change notification", e)
+        }
+    }
+
+    private fun dispatchChangeEvents(entityType: String, eventsJson: String) {
+        val count = callbackList.beginBroadcast()
+        try {
+            for (i in 0 until count) {
+                val listener = callbackList.getBroadcastItem(i)
+                val filter = listenerFilters[listener.asBinder()] ?: "{}"
+                if (matchesFilter(filter, entityType)) {
+                    try {
+                        listener.onChanges(eventsJson)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to deliver change event to listener", e)
+                    }
+                }
+            }
+        } finally {
+            callbackList.finishBroadcast()
+        }
+    }
+
+    private fun matchesFilter(filterJson: String, entityType: String): Boolean {
+        return try {
+            val filter = JSONObject(filterJson)
+            val targetType = filter.optString("entity_type", "*")
+            targetType == "*" || targetType == entityType
+        } catch (e: Exception) {
+            true
         }
     }
 }
