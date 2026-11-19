@@ -102,5 +102,7 @@ if (pdsClient.connect()) {
 - [Przewodnik integracji](docs/integration-guide.md)
 - [Architektura systemu](docs/architecture.md)
 - [Referencja API klienta](docs/api-reference.md)
+- [Powiadomienia w czasie rzeczywistym (Pub/Sub)](docs/pubsub.md)
+
 
 
