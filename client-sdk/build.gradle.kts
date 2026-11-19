@@ -1,7 +1,11 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    `maven-publish`
 }
+
+group = "top.tau2c.pds"
+version = rootProject.extra["pdsVersion"] as String
 
 android {
     namespace = "top.tau2c.pds.client"
@@ -26,6 +30,26 @@ android {
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
+}
+
+publishing {
+    publications {
+        register<MavenPublication>("release") {
+            groupId = "top.tau2c.pds"
+            artifactId = "client-sdk"
+            version = rootProject.extra["pdsVersion"] as String
+
+            afterEvaluate {
+                from(components["release"])
+            }
         }
     }
 }

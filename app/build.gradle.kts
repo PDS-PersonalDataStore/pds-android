@@ -11,8 +11,8 @@ android {
         applicationId = "top.tau2c.pds.core"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = rootProject.extra["pdsVersionCode"] as Int
+        versionName = rootProject.extra["pdsVersion"] as String
 
         ndk {
             abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
