@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import top.tau2c.pds.core.IPdsChangeListener
 import top.tau2c.pds.core.IPdsService
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * High-level Android SDK client for integrating with the central PDS Core background service.
@@ -20,15 +22,29 @@ class PdsAndroidClient(private val context: Context) {
     private var pdsService: IPdsService? = null
     private var isBound = false
 
-    interface ConnectionListener {
-        fun onConnected(client: PdsAndroidClient)
-        fun onDisconnected()
+    fun interface ChangeListener {
+        fun onChanges(changeEventsJson: String)
     }
+
+    private class ListenerEntry(
+        val listener: ChangeListener,
+        val filterJson: String,
+        val aidlCallback: IPdsChangeListener.Stub
+    )
+
+    private val activeSubscriptions = CopyOnWriteArrayList<ListenerEntry>()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             pdsService = IPdsService.Stub.asInterface(service)
             isBound = true
+
+            // Re-register active subscriptions after reconnect
+            activeSubscriptions.forEach { entry ->
+                try {
+                    pdsService?.registerChangeListener(entry.filterJson, entry.aidlCallback)
+                } catch (_: Exception) {}
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -53,6 +69,11 @@ class PdsAndroidClient(private val context: Context) {
      */
     fun disconnect() {
         if (isBound) {
+            activeSubscriptions.forEach { entry ->
+                try {
+                    pdsService?.unregisterChangeListener(entry.aidlCallback)
+                } catch (_: Exception) {}
+            }
             context.unbindService(serviceConnection)
             isBound = false
             pdsService = null
@@ -84,5 +105,36 @@ class PdsAndroidClient(private val context: Context) {
      */
     fun isReady(): Boolean {
         return pdsService?.isReady ?: false
+    }
+
+    /**
+     * Subscribes to real-time storage changes.
+     * @param entityType Specific entity type to watch, or "*" for all entities.
+     * @param listener Callback invoked when changes occur.
+     */
+    fun subscribe(entityType: String = "*", listener: ChangeListener) {
+        val service = pdsService ?: throw IllegalStateException("PdsService is not connected")
+        val filterJson = """{"entity_type":"$entityType"}"""
+        val callback = object : IPdsChangeListener.Stub() {
+            override fun onChanges(changeEventsJson: String?) {
+                if (changeEventsJson != null) {
+                    listener.onChanges(changeEventsJson)
+                }
+            }
+        }
+        val entry = ListenerEntry(listener, filterJson, callback)
+        activeSubscriptions.add(entry)
+        service.registerChangeListener(filterJson, callback)
+    }
+
+    /**
+     * Unsubscribes a previously registered listener.
+     */
+    fun unsubscribe(listener: ChangeListener) {
+        val entry = activeSubscriptions.firstOrNull { it.listener == listener } ?: return
+        activeSubscriptions.remove(entry)
+        try {
+            pdsService?.unregisterChangeListener(entry.aidlCallback)
+        } catch (_: Exception) {}
     }
 }
