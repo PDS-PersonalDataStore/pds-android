@@ -137,4 +137,29 @@ class PdsAndroidClient(private val context: Context) {
             pdsService?.unregisterChangeListener(entry.aidlCallback)
         } catch (_: Exception) {}
     }
+
+    /**
+     * Retrieves pending changes for an offline/reconnecting client session.
+     */
+    fun getPendingChanges(sessionId: String, limit: Int? = null): String {
+        val limitJson = if (limit != null) ""","limit":$limit""" else ""
+        val req = """{"action":"get_pending_changes","session_id":"$sessionId"$limitJson}"""
+        return executeRawRequest(req)
+    }
+
+    /**
+     * Acknowledges processed changes and advances durable client cursor.
+     */
+    fun acknowledgeChanges(sessionId: String, changeId: String): String {
+        val req = """{"action":"acknowledge_changes","session_id":"$sessionId","change_id":"$changeId"}"""
+        return executeRawRequest(req)
+    }
+
+    /**
+     * Reads durable client cursor position.
+     */
+    fun getClientCursor(sessionId: String): String {
+        val req = """{"action":"get_client_cursor","session_id":"$sessionId"}"""
+        return executeRawRequest(req)
+    }
 }
