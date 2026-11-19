@@ -25,10 +25,11 @@ extra["pdsVersion"] = pdsVersion
 extra["pdsVersionCode"] = try {
     val clean = pdsVersion.split("-")[0]
     val parts = clean.split(".")
-    val major = parts.getOrNull(0)?.toIntOrNull() ?: 0
+    val major = parts.getOrNull(0)?.toIntOrNull() ?: 1
     val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
     val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
-    major * 10000 + minor * 100 + patch
+    val code = major * 10000 + minor * 100 + patch
+    if (code > 0) code else 1
 } catch (_: Exception) {
     1
 }
