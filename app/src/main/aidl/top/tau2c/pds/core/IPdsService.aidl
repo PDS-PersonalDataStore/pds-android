@@ -1,5 +1,7 @@
 package top.tau2c.pds.core;
 
+import top.tau2c.pds.core.IPdsChangeListener;
+
 /**
  * Android Binder IPC interface for Personal Data Store (PDS).
  * Enables third-party Android applications to communicate with the centralized
@@ -26,4 +28,15 @@ interface IPdsService {
      * Checks if PDS Core storage engine is initialized and ready.
      */
     boolean isReady();
+
+    /**
+     * Subscribes to real-time storage changes.
+     * filterJson: e.g. '{"entity_type": "notes"}' or '{"entity_type": "*"}'.
+     */
+    void registerChangeListener(String filterJson, IPdsChangeListener listener);
+
+    /**
+     * Unsubscribes from storage changes.
+     */
+    void unregisterChangeListener(IPdsChangeListener listener);
 }
