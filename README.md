@@ -94,3 +94,10 @@ if (pdsClient.connect()) {
     // Połączono z PDS Core
 }
 ```
+
+---
+
+## Dokumentacja
+
+Szczegółowy przewodnik integracji krok po kroku znajduje się w pliku [docs/integration-guide.md](docs/integration-guide.md).
+
