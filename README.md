@@ -99,5 +99,8 @@ if (pdsClient.connect()) {
 
 ## Dokumentacja
 
-Szczegółowy przewodnik integracji krok po kroku znajduje się w pliku [docs/integration-guide.md](docs/integration-guide.md).
+- [Przewodnik integracji](docs/integration-guide.md)
+- [Architektura systemu](docs/architecture.md)
+- [Referencja API klienta](docs/api-reference.md)
+
 
