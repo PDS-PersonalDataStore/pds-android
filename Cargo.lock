@@ -475,8 +475,8 @@ dependencies = [
 
 [[package]]
 name = "pds"
-version = "1.2.0"
-source = "git+https://github.com/Tau2C/pds-rs.git?branch=master#299622d4e9e3e3bf330f74eb7321972d9291a8ca"
+version = "1.3.0"
+source = "git+https://github.com/Tau2C/pds-rs.git?branch=master#bced3a4a098dadcec0896457f319433f53c7a7dc"
 dependencies = [
  "chacha20poly1305",
  "chrono",
