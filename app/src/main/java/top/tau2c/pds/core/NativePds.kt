@@ -15,4 +15,10 @@ object NativePds {
     external fun registerClient(clientName: String, publicKey: ByteArray): String
 
     external fun approveClient(clientId: String, permissionsJson: String): Boolean
+
+    external fun listClientsJson(): String
+
+    external fun revokeClient(clientId: String): Boolean
+
+    external fun removeClient(clientId: String): Boolean
 }

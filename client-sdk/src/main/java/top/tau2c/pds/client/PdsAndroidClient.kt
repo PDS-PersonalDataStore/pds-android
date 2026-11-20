@@ -162,4 +162,28 @@ class PdsAndroidClient(private val context: Context) {
         val req = """{"action":"get_client_cursor","session_id":"$sessionId"}"""
         return executeRawRequest(req)
     }
+
+    /**
+     * Lists all registered client applications as JSON array.
+     */
+    fun listClients(): String {
+        val service = pdsService ?: throw IllegalStateException("PdsService not connected")
+        return service.listClients()
+    }
+
+    /**
+     * Revokes permissions of a client application.
+     */
+    fun revokeClient(clientId: String): Boolean {
+        val service = pdsService ?: throw IllegalStateException("PdsService not connected")
+        return service.revokeClient(clientId)
+    }
+
+    /**
+     * Removes a client application registration record.
+     */
+    fun removeClient(clientId: String): Boolean {
+        val service = pdsService ?: throw IllegalStateException("PdsService not connected")
+        return service.removeClient(clientId)
+    }
 }

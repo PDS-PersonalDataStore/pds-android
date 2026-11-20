@@ -9,10 +9,22 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientMeta {
+    pub client_id: String,
+    pub name: String,
+    pub public_key: String,
+    pub status: String,
+    pub permissions: Vec<String>,
+}
+
 struct PdsEngine {
     storage: DiskStorage,
     sessions: IpcSessionManager,
     authenticator: ClientAuthenticator,
+    client_meta: std::collections::BTreeMap<String, ClientMeta>,
 }
 
 static ENGINE: Mutex<Option<PdsEngine>> = Mutex::new(None);
@@ -46,6 +58,7 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_init(
         storage,
         sessions,
         authenticator,
+        client_meta: std::collections::BTreeMap::new(),
     });
 
     1
@@ -138,8 +151,18 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_registerClient(
         None => return env.new_string("").unwrap().into_raw(),
     };
 
-    let client_id = engine.authenticator.register_client(name_str, key_bytes);
-    env.new_string(client_id.to_string()).unwrap().into_raw()
+    let client_id = engine.authenticator.register_client(name_str.clone(), key_bytes);
+    let id_str = client_id.to_string();
+    let meta = ClientMeta {
+        client_id: id_str.clone(),
+        name: name_str,
+        public_key: hex_encode(&key_bytes),
+        status: "Pending".to_string(),
+        permissions: Vec::new(),
+    };
+    engine.client_meta.insert(id_str.clone(), meta);
+
+    env.new_string(id_str).unwrap().into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -169,7 +192,7 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_approveClient(
     };
 
     let mut perm_set = BTreeSet::new();
-    for p in perms {
+    for p in &perms {
         match p.as_str() {
             "ReadEntities" => {
                 perm_set.insert(Permission::ReadEntities);
@@ -203,7 +226,106 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_approveClient(
     };
 
     engine.authenticator.approve_client(&client_id, perm_set);
+
+    if let Some(meta) = engine.client_meta.get_mut(&id_str) {
+        meta.status = "Active".to_string();
+        meta.permissions = perms;
+    }
+
     1
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_top_tau2c_pds_core_NativePds_listClientsJson(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    let guard = ENGINE.lock().unwrap();
+    let engine = match guard.as_ref() {
+        Some(eng) => eng,
+        None => return env.new_string("[]").unwrap().into_raw(),
+    };
+
+    let list: Vec<&ClientMeta> = engine.client_meta.values().collect();
+    let json_str = serde_json::to_string(&list).unwrap_or_else(|_| "[]".to_string());
+    env.new_string(json_str).unwrap().into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_top_tau2c_pds_core_NativePds_revokeClient(
+    mut env: JNIEnv,
+    _class: JClass,
+    client_id_str: JString,
+) -> jboolean {
+    let id_str: String = match env.get_string(&client_id_str) {
+        Ok(s) => s.into(),
+        Err(_) => return 0,
+    };
+
+    let client_id = match id_str.parse::<ulid::Ulid>() {
+        Ok(u) => ClientId(u),
+        Err(_) => return 0,
+    };
+
+    let mut guard = ENGINE.lock().unwrap();
+    let engine = match guard.as_mut() {
+        Some(eng) => eng,
+        None => return 0,
+    };
+
+    // Revoke permissions in authenticator by setting empty permissions set
+    engine
+        .authenticator
+        .approve_client(&client_id, BTreeSet::new());
+
+    if let Some(meta) = engine.client_meta.get_mut(&id_str) {
+        meta.status = "Revoked".to_string();
+        meta.permissions.clear();
+        1
+    } else {
+        0
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_top_tau2c_pds_core_NativePds_removeClient(
+    mut env: JNIEnv,
+    _class: JClass,
+    client_id_str: JString,
+) -> jboolean {
+    let id_str: String = match env.get_string(&client_id_str) {
+        Ok(s) => s.into(),
+        Err(_) => return 0,
+    };
+
+    let client_id = match id_str.parse::<ulid::Ulid>() {
+        Ok(u) => ClientId(u),
+        Err(_) => return 0,
+    };
+
+    let mut guard = ENGINE.lock().unwrap();
+    let engine = match guard.as_mut() {
+        Some(eng) => eng,
+        None => return 0,
+    };
+
+    engine
+        .authenticator
+        .approve_client(&client_id, BTreeSet::new());
+    if engine.client_meta.remove(&id_str).is_some() {
+        1
+    } else {
+        0
+    }
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        use std::fmt::Write;
+        let _ = write!(s, "{:02x}", b);
+    }
+    s
 }
 
 fn bytemuck_i8_slice(bytes: &mut [u8; 32]) -> &mut [i8] {
