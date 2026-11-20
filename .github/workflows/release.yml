@@ -82,7 +82,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/release.keystore" >> $GITHUB_ENV
+          fi
+
       - name: Build APK and Client SDK AAR
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           gradle assembleRelease --stacktrace
 
@@ -117,7 +130,7 @@ jobs:
           if [ -n "$APK_FILE" ]; then
             cp "$APK_FILE" "fdroid-repo/repo/top.tau2c.pds.core_${TAG_NAME}.apk"
             cd fdroid-repo
-            git add repo/
+            git add -A repo/
             git commit -m "feat(pds): add PDS Core release ${TAG_NAME}" || exit 0
             git push origin master
           fi
