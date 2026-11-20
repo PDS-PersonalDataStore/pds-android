@@ -1,5 +1,7 @@
 # PDS Android (Personal Data Store for Android)
 
+[![CI Build & Tests](https://github.com/Tau2C/pds-android/actions/workflows/ci.yml/badge.svg)](https://github.com/Tau2C/pds-android/actions/workflows/ci.yml)
+
 Projekt dostarczający centralną usługę systemową PDS Core na platformę Android (`top.tau2c.pds.core`) oraz bibliotekę kliencką SDK (`top.tau2c.pds.client`) dla aplikacji zewnętrznych.
 
 ---
@@ -97,6 +99,25 @@ if (pdsClient.connect()) {
 
 ---
 
+## Instalacja aplikacji PDS Core
+
+Aplikacja PDS Core jest dostępna w dedykowanym repozytorium F-Droid.
+
+### Dodanie repozytorium do klienta F-Droid
+
+Kliknij poniższy link na urządzeniu z systemem Android, aby dodać repozytorium:
+
+[Dodaj do F-Droid](https://Tau2C.github.io/fdroid-repo/fdroid/repo?fingerprint=CF7B5AA087E06C58AB4F0EEFF8BE0AFEBE15EB167416EC11EDD69AA23C4CFE38)
+
+Możesz także dodać repozytorium ręcznie:
+
+- **Adres**: `https://Tau2C.github.io/fdroid-repo/fdroid/repo`
+- **Odcisk klucza (SHA-256)**: `CF 7B 5A A0 87 E0 6C 58 AB 4F 0E EF F8 BE 0A FE BE 15 EB 16 74 16 EC 11 ED D6 9A A2 3C 4C FE 38`
+
+Po dodaniu repozytorium wyszukaj i zainstaluj pakiet `PDS Core` (`top.tau2c.pds.core`).
+
+---
+
 ## Dokumentacja
 
 - [Przewodnik integracji](docs/integration-guide.md)
@@ -104,7 +125,3 @@ if (pdsClient.connect()) {
 - [Referencja API klienta](docs/api-reference.md)
 - [Powiadomienia w czasie rzeczywistym (Pub/Sub)](docs/pubsub.md)
 - [Kolejka offline i trwały kursor](docs/offline-queue.md)
-
-
-
-
