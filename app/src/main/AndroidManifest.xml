@@ -24,6 +24,17 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".AuthDialogActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.Dialog"
+            android:permission="top.tau2c.pds.permission.ACCESS_PDS">
+            <intent-filter>
+                <action android:name="top.tau2c.pds.core.REQUEST_AUTHORIZATION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".PdsService"
             android:enabled="true"
