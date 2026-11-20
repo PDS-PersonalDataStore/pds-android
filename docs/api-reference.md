@@ -70,3 +70,15 @@ Returns `true` on success.
 
 Remove a client application registration record.
 Returns `true` on success.
+
+### `createAuthorizationIntent(...)`
+
+Create an Intent to trigger the interactive PDS Core authorization popup dialog:
+```kotlin
+val intent = PdsAndroidClient.createAuthorizationIntent(
+    clientName = "Receipts",
+    publicKey = ed25519PublicKeyBytes,
+    permissions = arrayOf("ReadEntities", "WriteEntities")
+)
+startActivityForResult(intent, REQUEST_CODE)
+```
