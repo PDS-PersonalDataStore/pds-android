@@ -73,6 +73,23 @@ class PdsService : Service() {
             callbackList.unregister(listener)
             Log.d(TAG, "Unregistered change listener")
         }
+
+        override fun listClients(): String {
+            enforceCallingPermission()
+            return NativePds.listClientsJson()
+        }
+
+        override fun revokeClient(clientId: String?): Boolean {
+            enforceCallingPermission()
+            if (clientId == null) return false
+            return NativePds.revokeClient(clientId)
+        }
+
+        override fun removeClient(clientId: String?): Boolean {
+            enforceCallingPermission()
+            if (clientId == null) return false
+            return NativePds.removeClient(clientId)
+        }
     }
 
     override fun onCreate() {
