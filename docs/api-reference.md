@@ -55,3 +55,18 @@ Returns the SHA-256 hash of the blob.
 
 Retrieve binary data by its content hash.
 Returns the byte array, or null if not found.
+
+### `listClients(): String`
+
+Retrieve registered client applications as JSON array.
+Returns JSON string containing client metadata objects.
+
+### `revokeClient(clientId: String): Boolean`
+
+Revoke permissions of a registered client application.
+Returns `true` on success.
+
+### `removeClient(clientId: String): Boolean`
+
+Remove a client application registration record.
+Returns `true` on success.
