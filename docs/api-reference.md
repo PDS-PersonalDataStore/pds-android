@@ -101,3 +101,33 @@ val membersJson = """
 """.trimIndent()
 val response = client.createMultimemberRelation(sessionId, "categorized_under", membersJson)
 ```
+
+### `putEncryptedBlob(sessionId, plaintext, keyAlias, mediaType?): String`
+
+Encrypts data with AES-256-GCM using hardware-backed Android KeyStore before transmission and stores it in PDS Core:
+```kotlin
+val encryptedResponse = client.putEncryptedBlob(
+    sessionId = sessionId,
+    plaintext = fileBytes,
+    keyAlias = "user_master_key"
+)
+```
+
+### `getEncryptedBlob(sessionId, blobId, keyAlias): ByteArray`
+
+Retrieves an encrypted blob from PDS Core and decrypts it on the client device:
+```kotlin
+val decryptedBytes = client.getEncryptedBlob(
+    sessionId = sessionId,
+    blobId = blobId,
+    keyAlias = "user_master_key"
+)
+```
+
+### `PdsCryptoManager`
+
+Direct cryptographic helper for client-side Zero-Knowledge encryption:
+- `getOrCreateKey(keyAlias: String): SecretKey`: Generates or gets an AES-256 key in Android KeyStore.
+- `encrypt(plaintext: ByteArray, keyAlias: String): ByteArray`: Returns IV prepended to AES-GCM ciphertext.
+- `decrypt(encryptedPayload: ByteArray, keyAlias: String): ByteArray`: Decrypts IV + ciphertext payload.
+
