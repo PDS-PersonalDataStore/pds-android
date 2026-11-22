@@ -82,3 +82,22 @@ val intent = PdsAndroidClient.createAuthorizationIntent(
 )
 startActivityForResult(intent, REQUEST_CODE)
 ```
+
+### `createRelation(sessionId, relationType, sourceEntityId, targetEntityId): String`
+
+Create a binary relation between source and target entities.
+Returns JSON response from PDS Core.
+
+### `createMultimemberRelation(sessionId, relationType, membersJson): String`
+
+Create a relation with multiple members and roles (Engine 1.5):
+```kotlin
+val membersJson = """
+[
+  {"entity_id": "$receiptId", "role": "receipt"},
+  {"entity_id": "$storeId", "role": "merchant"},
+  {"entity_id": "$categoryId", "role": "category"}
+]
+""".trimIndent()
+val response = client.createMultimemberRelation(sessionId, "categorized_under", membersJson)
+```
