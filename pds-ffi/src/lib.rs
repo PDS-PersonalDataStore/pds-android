@@ -3,7 +3,7 @@ use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jint, jstring};
 use pds::{
     ClientAuthenticator, ClientId, DiskStorage, IpcRequest, IpcResponse, IpcServerHandler,
-    IpcSessionManager, Permission,
+    IpcSessionManager, LoggingManager, Permission,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -39,12 +39,39 @@ impl PdsEngine {
 static ENGINE: Mutex<Option<PdsEngine>> = Mutex::new(None);
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_top_tau2c_pds_core_NativePds_setLogLevel(
+    mut env: JNIEnv,
+    _class: JClass,
+    log_level: JString,
+) -> jboolean {
+    let level_str: String = match env.get_string(&log_level) {
+        Ok(s) => s.into(),
+        Err(_) => return 0,
+    };
+    if LoggingManager::set_level(&level_str).is_ok() {
+        1
+    } else {
+        0
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_top_tau2c_pds_core_NativePds_getLogLevel(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    let level = LoggingManager::get_level();
+    env.new_string(level).unwrap().into_raw()
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_top_tau2c_pds_core_NativePds_init(
     mut env: JNIEnv,
     _class: JClass,
     data_dir: JString,
     node_name: JString,
 ) -> jboolean {
+    let _ = LoggingManager::init(Some("info"));
     let data_dir_str: String = match env.get_string(&data_dir) {
         Ok(s) => s.into(),
         Err(_) => return 0,
@@ -118,6 +145,7 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson(
     let request: IpcRequest = match serde_json::from_str(&req_str) {
         Ok(req) => req,
         Err(e) => {
+            tracing::error!(error = %e, "Invalid JSON IPC request");
             let err_json =
                 serde_json::to_string(&IpcResponse::Error(format!("Invalid JSON request: {}", e)))
                     .unwrap();
@@ -125,10 +153,13 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson(
         }
     };
 
+    tracing::debug!(calling_uid, "Handling IPC request");
+
     let mut guard = ENGINE.lock().unwrap();
     let engine = match guard.as_mut() {
         Some(eng) => eng,
         None => {
+            tracing::warn!("Rejecting IPC request: PDS Engine is not initialized");
             let err_json =
                 serde_json::to_string(&IpcResponse::Error("PDS Engine is not initialized".into()))
                     .unwrap();
@@ -150,6 +181,7 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson(
 
     let response = handler.handle_request(request, peer_pid);
     let resp_str = serde_json::to_string(&response).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "Failed to serialize IPC response");
         format!(
             r#"{{"status":"Error","payload":"Failed to serialize response: {}"}}"#,
             e

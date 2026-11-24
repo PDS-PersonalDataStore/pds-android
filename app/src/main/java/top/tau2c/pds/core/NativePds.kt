@@ -10,6 +10,10 @@ object NativePds {
 
     external fun init(dataDir: String, nodeName: String): Boolean
 
+    external fun setLogLevel(logLevel: String): Boolean
+
+    external fun getLogLevel(): String
+
     external fun handleIpcRequestJson(requestJson: String, callingUid: Int): String
 
     external fun registerClient(clientName: String, publicKey: ByteArray): String
