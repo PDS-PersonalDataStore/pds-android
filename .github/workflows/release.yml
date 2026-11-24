@@ -111,7 +111,7 @@ jobs:
         with:
           files: release-artifacts/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           generate_release_notes: true
 
       - name: Publish APK to F-Droid Repository
