@@ -115,7 +115,7 @@ jobs:
           generate_release_notes: true
 
       - name: Publish APK to F-Droid Repository
-        if: ${{ env.FDROID_REPO_TOKEN != '' }}
+        if: ${{ env.FDROID_REPO_TOKEN != '' && !contains(github.ref_name, '-dev') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
         env:
           FDROID_REPO_TOKEN: ${{ secrets.FDROID_REPO_TOKEN }}
         run: |
@@ -136,7 +136,7 @@ jobs:
           fi
 
       - name: Trigger F-Droid Repo Update
-        if: ${{ env.FDROID_DISPATCH_TOKEN != '' }}
+        if: ${{ env.FDROID_DISPATCH_TOKEN != '' && !contains(github.ref_name, '-dev') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
         uses: peter-evans/repository-dispatch@v3
         env:
           FDROID_DISPATCH_TOKEN: ${{ secrets.FDROID_DISPATCH_TOKEN }}
@@ -144,4 +144,5 @@ jobs:
           token: ${{ secrets.FDROID_DISPATCH_TOKEN }}
           repository: Tau2C/fdroid-repo
           event-type: new-release
+
 
