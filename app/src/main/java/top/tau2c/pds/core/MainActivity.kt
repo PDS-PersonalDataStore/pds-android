@@ -8,10 +8,14 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
 import android.view.Gravity
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 
 class MainActivity : Activity() {
 
@@ -20,6 +24,8 @@ class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
     private lateinit var infoText: TextView
+    private lateinit var logLevelSpinner: Spinner
+    private var isUpdatingLogLevel = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -74,6 +80,49 @@ class MainActivity : Activity() {
         }
         rootLayout.addView(refreshButton)
 
+        val logLevelLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 24, 0, 16)
+        }
+
+        val logLevelLabel = TextView(this).apply {
+            text = "Log Level: "
+            textSize = 15f
+            paint.isFakeBoldText = true
+        }
+        logLevelLayout.addView(logLevelLabel)
+
+        val levels = arrayOf("trace", "debug", "info", "warn", "error")
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, levels).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+
+        logLevelSpinner = Spinner(this).apply {
+            this.adapter = adapter
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                    if (isUpdatingLogLevel) return
+                    val selectedLevel = levels[position]
+                    val service = pdsService ?: return
+                    try {
+                        val success = service.setLogLevel(selectedLevel)
+                        if (success) {
+                            Toast.makeText(this@MainActivity, "Log level set to: $selectedLevel", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "Failed to set log level", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(this@MainActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        }
+        logLevelLayout.addView(logLevelSpinner)
+        rootLayout.addView(logLevelLayout)
+
         val clientSectionTitle = TextView(this).apply {
             text = "Registered Client Applications"
             textSize = 18f
@@ -125,12 +174,27 @@ class MainActivity : Activity() {
         if (ready) {
             statusText.text = "Status: Online (Storage Engine Ready)"
             statusText.setTextColor(0xFF2E7D32.toInt())
+            updateLogLevelSpinner()
         } else {
             statusText.text = "Status: Initializing or Disconnected"
             statusText.setTextColor(0xFFC62828.toInt())
         }
 
         loadClients()
+    }
+
+    private fun updateLogLevelSpinner() {
+        val service = pdsService ?: return
+        try {
+            val currentLevel = service.logLevel?.lowercase()?.trim() ?: return
+            val levels = arrayOf("trace", "debug", "info", "warn", "error")
+            val index = levels.indexOf(currentLevel)
+            if (index != -1 && index != logLevelSpinner.selectedItemPosition) {
+                isUpdatingLogLevel = true
+                logLevelSpinner.setSelection(index)
+                isUpdatingLogLevel = false
+            }
+        } catch (_: Exception) {}
     }
 
     private fun loadClients() {
