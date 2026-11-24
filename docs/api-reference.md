@@ -131,3 +131,17 @@ Direct cryptographic helper for client-side Zero-Knowledge encryption:
 - `encrypt(plaintext: ByteArray, keyAlias: String): ByteArray`: Returns IV prepended to AES-GCM ciphertext.
 - `decrypt(encryptedPayload: ByteArray, keyAlias: String): ByteArray`: Decrypts IV + ciphertext payload.
 
+### `setLogLevel(logLevel: String): Boolean`
+
+Dynamically sets the tracing log level filter on PDS Core (e.g. `"info"`, `"debug"`, `"trace"`, `"pds=debug"`):
+```kotlin
+client.setLogLevel("debug")
+```
+
+### `getLogLevel(): String`
+
+Retrieves the currently configured tracing log level filter:
+```kotlin
+val currentLevel = client.getLogLevel()
+```
+

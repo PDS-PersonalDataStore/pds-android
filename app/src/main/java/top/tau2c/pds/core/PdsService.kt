@@ -90,6 +90,18 @@ class PdsService : Service() {
             if (clientId == null) return false
             return NativePds.removeClient(clientId)
         }
+
+        override fun setLogLevel(logLevel: String?): Boolean {
+            enforceCallingPermission()
+            if (logLevel == null) return false
+            Log.i(TAG, "Setting tracing log level to: $logLevel")
+            return NativePds.setLogLevel(logLevel)
+        }
+
+        override fun getLogLevel(): String {
+            enforceCallingPermission()
+            return NativePds.getLogLevel()
+        }
     }
 
     override fun onCreate() {

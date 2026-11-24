@@ -296,4 +296,21 @@ class PdsAndroidClient(private val context: Context) {
         val service = pdsService ?: throw IllegalStateException("PdsService not connected")
         return service.removeClient(clientId)
     }
+
+    /**
+     * Configures the tracing log level filter dynamically on PDS Core.
+     * @param logLevel Filter string (e.g. "info", "debug", "trace", "pds=debug").
+     */
+    fun setLogLevel(logLevel: String): Boolean {
+        val service = pdsService ?: throw IllegalStateException("PdsService not connected")
+        return service.setLogLevel(logLevel)
+    }
+
+    /**
+     * Retrieves current tracing log level filter from PDS Core.
+     */
+    fun getLogLevel(): String {
+        val service = pdsService ?: throw IllegalStateException("PdsService not connected")
+        return service.logLevel
+    }
 }
