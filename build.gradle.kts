@@ -23,12 +23,20 @@ val pdsVersion: String = if (rawTag.isNotEmpty()) {
 
 extra["pdsVersion"] = pdsVersion
 extra["pdsVersionCode"] = try {
-    val clean = pdsVersion.split("-")[0]
-    val parts = clean.split(".")
+    val hyphenIndex = pdsVersion.indexOf('-')
+    val (versionCore, pre) = if (hyphenIndex != -1) {
+        val core = pdsVersion.substring(0, hyphenIndex)
+        val suffix = pdsVersion.substring(hyphenIndex + 1)
+        val preNumber = Regex("""\d+""").findAll(suffix).lastOrNull()?.value?.toIntOrNull() ?: 0
+        core to preNumber.coerceIn(0, 98)
+    } else {
+        pdsVersion to 99
+    }
+    val parts = versionCore.split(".")
     val major = parts.getOrNull(0)?.toIntOrNull() ?: 1
     val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
     val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
-    val code = major * 10000 + minor * 100 + patch
+    val code = major * 1000000 + minor * 10000 + patch * 100 + pre
     if (code > 0) code else 1
 } catch (_: Exception) {
     1
