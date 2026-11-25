@@ -150,11 +150,27 @@ object PdsCryptoManager {
     }
 
     /**
-     * Signs a message using Ed25519 with the client's private identity key.
+     * Signs a message using Ed25519 with the client's private identity key from context.
      */
     fun sign(context: android.content.Context, message: ByteArray): ByteArray {
         val privSeed = getOrCreateIdentityPrivateKey(context)
-        return signEd25519(privSeed, message)
+        return signWithPrivateKey(privSeed, message)
+    }
+
+    /**
+     * Signs a message using Ed25519 with a manually provided 32-byte private key seed.
+     */
+    fun signWithPrivateKey(privateKeySeed: ByteArray, message: ByteArray): ByteArray {
+        require(privateKeySeed.size == 32) { "Ed25519 private key seed must be exactly 32 bytes" }
+        return signEd25519(privateKeySeed, message)
+    }
+
+    /**
+     * Derives a 32-byte Ed25519 public key from a 32-byte private key seed.
+     */
+    fun derivePublicKey(privateKeySeed: ByteArray): ByteArray {
+        require(privateKeySeed.size == 32) { "Ed25519 private key seed must be exactly 32 bytes" }
+        return derivePublicKeyFromSeed(privateKeySeed)
     }
 
     /**

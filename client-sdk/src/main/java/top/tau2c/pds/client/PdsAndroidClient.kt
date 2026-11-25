@@ -149,6 +149,18 @@ class PdsAndroidClient(private val context: Context) {
     }
 
     /**
+     * Creates an Intent to launch the interactive PDS Core authorization popup dialog with a manually provided public key.
+     */
+    fun createManualAuthorizationIntent(
+        clientName: String,
+        publicKey: ByteArray,
+        permissions: Array<String> = arrayOf("ReadEntities", "WriteEntities", "ReadBlobs", "WriteBlobs", "ReadHistory")
+    ): Intent {
+        require(publicKey.size == 32) { "Ed25519 public key must be exactly 32 bytes" }
+        return createAuthorizationIntent(clientName, publicKey, permissions)
+    }
+
+    /**
      * Handles the result Intent from the authorization Activity, storing the clientId if authorization succeeded.
      * Returns the authorized clientId, or null if cancelled or missing.
      */
@@ -206,8 +218,39 @@ class PdsAndroidClient(private val context: Context) {
      * Establishes and stores activeSessionId.
      */
     fun authenticate(apiVersion: String = "1.4.0"): String {
-        val service = pdsService ?: throw IllegalStateException("PdsService is not connected")
         val clientId = getClientId() ?: throw IllegalStateException("Client is not authorized. Request authorization first.")
+        return authenticateWithCredentials(
+            clientId = clientId,
+            signer = { payload -> PdsCryptoManager.sign(context, payload) },
+            apiVersion = apiVersion
+        )
+    }
+
+    /**
+     * Authenticates manually using an explicit clientId and a 32-byte Ed25519 private key seed managed by the application.
+     */
+    fun authenticateWithPrivateKey(
+        clientId: String,
+        privateKeySeed: ByteArray,
+        apiVersion: String = "1.4.0"
+    ): String {
+        return authenticateWithCredentials(
+            clientId = clientId,
+            signer = { payload -> PdsCryptoManager.signWithPrivateKey(privateKeySeed, payload) },
+            apiVersion = apiVersion
+        )
+    }
+
+    /**
+     * Authenticates manually with PDS Core using an explicit clientId and a custom signature function.
+     * Useful when the application holds keys in its own secure hardware / HSM / key store.
+     */
+    fun authenticateWithCredentials(
+        clientId: String,
+        signer: (signingPayload: ByteArray) -> ByteArray,
+        apiVersion: String = "1.4.0"
+    ): String {
+        val service = pdsService ?: throw IllegalStateException("PdsService is not connected")
 
         // 1. Generate 32-byte secure random client nonce
         val clientNonce = ByteArray(32)
@@ -231,7 +274,7 @@ class PdsAndroidClient(private val context: Context) {
             serverNonce[i] = serverNonceArray.getInt(i).toByte()
         }
 
-        // 3. Compute signing payload and sign using client identity key
+        // 3. Compute signing payload according to PDS IPC specification
         val signingPayload = PdsCryptoManager.computeSigningPayload(
             serverInstanceId = serverInstanceId,
             clientIdUlidString = clientId,
@@ -239,9 +282,11 @@ class PdsAndroidClient(private val context: Context) {
             serverNonce = serverNonce,
             apiVersion = negotiatedApiVersion
         )
-        val signature = PdsCryptoManager.sign(context, signingPayload)
 
-        // 4. Submit signature to PDS Core
+        // 4. Sign payload
+        val signature = signer(signingPayload)
+
+        // 5. Submit signature to PDS Core
         val authRespJson = service.authenticateClientWithSignature(clientId, signature)
         val authObj = org.json.JSONObject(authRespJson)
         val authStatus = authObj.optString("status")
