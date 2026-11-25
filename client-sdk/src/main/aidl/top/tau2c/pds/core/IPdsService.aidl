@@ -64,4 +64,22 @@ interface IPdsService {
      * Gets current tracing log level filter.
      */
     String getLogLevel();
+
+    /**
+     * Sends Hello handshake to PDS Core and returns AuthChallenge JSON or Error JSON.
+     */
+    String requestChallenge(
+        String clientId,
+        in byte[] clientNonce,
+        String apiVersion
+    );
+
+    /**
+     * Responds to challenge with Ed25519 signature.
+     * Returns AuthSuccess JSON or Error JSON.
+     */
+    String authenticateClientWithSignature(
+        String clientId,
+        in byte[] signature
+    );
 }
