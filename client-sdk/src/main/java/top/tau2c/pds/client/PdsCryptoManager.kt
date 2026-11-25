@@ -146,7 +146,7 @@ object PdsCryptoManager {
      */
     fun clearClientIdentity(context: android.content.Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().remove(KEY_CLIENT_ID).remove(KEY_PUBLIC_KEY).remove(KEY_PRIVATE_KEY_SEED).apply()
+        prefs.edit().remove(KEY_CLIENT_ID).remove(KEY_PUBLIC_KEY).remove(KEY_PRIVATE_KEY).apply()
     }
 
     /**
