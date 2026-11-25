@@ -71,6 +71,9 @@ pub extern "system" fn Java_top_tau2c_pds_core_NativePds_init(
     data_dir: JString,
     node_name: JString,
 ) -> jboolean {
+    #[cfg(target_os = "android")]
+    let _ = LoggingManager::init_custom(Some("info"), paranoid_android::layer("PDS"));
+    #[cfg(not(target_os = "android"))]
     let _ = LoggingManager::init(Some("info"));
     let data_dir_str: String = match env.get_string(&data_dir) {
         Ok(s) => s.into(),

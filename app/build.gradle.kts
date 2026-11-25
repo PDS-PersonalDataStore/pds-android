@@ -43,6 +43,13 @@ android {
         }
     }
 
+    applicationVariants.all {
+        outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output?.outputFileName = "pds-android-${versionName}.apk"
+        }
+    }
+
     buildFeatures {
         aidl = true
     }

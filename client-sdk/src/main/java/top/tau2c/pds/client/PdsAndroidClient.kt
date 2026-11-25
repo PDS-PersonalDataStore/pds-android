@@ -44,6 +44,18 @@ class PdsAndroidClient(private val context: Context) {
                 putExtra(EXTRA_PERMISSIONS, permissions)
             }
         }
+
+        /**
+         * Context-aware helper creating authorization intent with automatically derived identity public key.
+         */
+        fun createAuthorizationIntent(
+            context: Context,
+            clientName: String,
+            permissions: Array<String> = arrayOf("ReadEntities", "WriteEntities", "ReadBlobs", "WriteBlobs", "ReadHistory")
+        ): Intent {
+            val pubKey = PdsCryptoManager.getOrCreateIdentityPublicKey(context)
+            return createAuthorizationIntent(clientName, pubKey, permissions)
+        }
     }
 
     private var pdsService: IPdsService? = null
@@ -120,11 +132,66 @@ class PdsAndroidClient(private val context: Context) {
     }
 
     /**
-     * Registers this client application.
+     * Creates an Intent to launch the interactive PDS Core authorization popup dialog using this client's identity key.
      */
-    fun register(clientName: String, publicKey: ByteArray): String {
+    fun createAuthorizationIntent(
+        clientName: String,
+        permissions: Array<String> = arrayOf("ReadEntities", "WriteEntities", "ReadBlobs", "WriteBlobs", "ReadHistory")
+    ): Intent {
+        return createAuthorizationIntent(context, clientName, permissions)
+    }
+
+    /**
+     * Handles the result Intent from the authorization Activity, storing the clientId if authorization succeeded.
+     * Returns the authorized clientId, or null if cancelled or missing.
+     */
+    fun handleAuthResult(resultIntent: Intent?): String? {
+        val clientId = resultIntent?.getStringExtra(RESULT_CLIENT_ID)
+        if (!clientId.isNullOrEmpty()) {
+            saveClientId(clientId)
+        }
+        return clientId
+    }
+
+    /**
+     * Retrieves the stored registered client identifier, or null if not yet authorized.
+     */
+    fun getClientId(): String? {
+        return PdsCryptoManager.getClientId(context)
+    }
+
+    /**
+     * Persists the registered client identifier.
+     */
+    fun saveClientId(clientId: String) {
+        PdsCryptoManager.saveClientId(context, clientId)
+    }
+
+    /**
+     * Checks if this client has an authorized clientId stored locally.
+     */
+    fun isAuthorized(): Boolean {
+        return !getClientId().isNullOrEmpty()
+    }
+
+    /**
+     * Clears stored client identity and authorization details.
+     */
+    fun clearClientIdentity() {
+        PdsCryptoManager.clearClientIdentity(context)
+    }
+
+    /**
+     * Registers this client application with the provided or automatically derived public key.
+     */
+    fun register(clientName: String, publicKey: ByteArray? = null): String {
         val service = pdsService ?: throw IllegalStateException("PdsService is not connected")
-        return service.registerClient(clientName, publicKey)
+        val key = publicKey ?: PdsCryptoManager.getOrCreateIdentityPublicKey(context)
+        val id = service.registerClient(clientName, key)
+        if (id.isNotEmpty()) {
+            saveClientId(id)
+        }
+        return id
     }
 
     /**
