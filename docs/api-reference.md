@@ -73,14 +73,28 @@ Returns `true` on success.
 
 ### `createAuthorizationIntent(...)`
 
-Create an Intent to trigger the interactive PDS Core authorization popup dialog:
+Create an Intent to trigger the interactive PDS Core authorization popup dialog.
+You can call it directly on the client instance with automatic public key generation:
 ```kotlin
-val intent = PdsAndroidClient.createAuthorizationIntent(
+val intent = client.createAuthorizationIntent(
     clientName = "Receipts",
-    publicKey = ed25519PublicKeyBytes,
-    permissions = arrayOf("ReadEntities", "WriteEntities")
+    permissions = arrayOf("ReadEntities", "WriteEntities", "ReadBlobs", "WriteBlobs", "ReadHistory")
 )
 startActivityForResult(intent, REQUEST_CODE)
+```
+
+Handle the result and persist `clientId`:
+```kotlin
+val clientId = client.handleAuthResult(resultIntent)
+if (clientId != null) {
+    // client is now authorized and remembered
+}
+```
+
+Check authorization status:
+```kotlin
+val isAuthorized = client.isAuthorized()
+val clientId = client.getClientId()
 ```
 
 ### `createRelation(sessionId, relationType, sourceEntityId, targetEntityId): String`
