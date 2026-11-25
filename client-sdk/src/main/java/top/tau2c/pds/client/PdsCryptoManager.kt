@@ -142,6 +142,14 @@ object PdsCryptoManager {
     }
 
     /**
+     * Clears stored client identity and authorization details.
+     */
+    fun clearClientIdentity(context: android.content.Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_CLIENT_ID).remove(KEY_PUBLIC_KEY).remove(KEY_PRIVATE_KEY_SEED).apply()
+    }
+
+    /**
      * Signs a message using Ed25519 with the client's private identity key.
      */
     fun sign(context: android.content.Context, message: ByteArray): ByteArray {
