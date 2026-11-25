@@ -34,6 +34,8 @@ pkgs.mkShell {
     })
 
     jdk17
+    gradle
+    cargo-ndk
     cmake
     ninja
     android-tools

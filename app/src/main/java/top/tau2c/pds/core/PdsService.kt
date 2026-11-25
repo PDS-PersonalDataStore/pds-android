@@ -102,6 +102,36 @@ class PdsService : Service() {
             enforceCallingPermission()
             return NativePds.getLogLevel()
         }
+
+        override fun requestChallenge(
+            clientId: String?,
+            clientNonce: ByteArray?,
+            apiVersion: String?
+        ): String {
+            enforceCallingPermission()
+            if (clientId == null || clientNonce == null) {
+                return """{"status":"Error","payload":"Invalid parameters for requestChallenge"}"""
+            }
+            val callingUid = Binder.getCallingUid()
+            val nonceArrayJson = clientNonce.joinToString(prefix = "[", postfix = "]", separator = ",") { (it.toInt() and 0xFF).toString() }
+            val ver = apiVersion ?: "1.4.0"
+            val helloReq = """{"action":"Hello","payload":{"client_id":"$clientId","api_version":"$ver","client_nonce":$nonceArrayJson,"capabilities":["entities","relations","blobs"]}}"""
+            return NativePds.handleIpcRequestJson(helloReq, callingUid)
+        }
+
+        override fun authenticateClientWithSignature(
+            clientId: String?,
+            signature: ByteArray?
+        ): String {
+            enforceCallingPermission()
+            if (clientId == null || signature == null) {
+                return """{"status":"Error","payload":"Invalid parameters for authenticateClientWithSignature"}"""
+            }
+            val callingUid = Binder.getCallingUid()
+            val sigArrayJson = signature.joinToString(prefix = "[", postfix = "]", separator = ",") { (it.toInt() and 0xFF).toString() }
+            val authReq = """{"action":"Authenticate","payload":{"client_id":"$clientId","signature":$sigArrayJson}}"""
+            return NativePds.handleIpcRequestJson(authReq, callingUid)
+        }
     }
 
     override fun onCreate() {
@@ -137,16 +167,27 @@ class PdsService : Service() {
         try {
             val req = JSONObject(requestJson)
             val action = req.optString("action", "")
-            if (action != "put" && action != "delete" && action != "put_blob") {
+            val isModifying = when (action) {
+                "CreateEntity", "UpdateEntity", "DeleteEntity", "CreateRelation", "DeleteRelation", "PutBlob", "PutEncryptedBlob", "put", "delete", "put_blob" -> true
+                else -> false
+            }
+            if (!isModifying) {
                 return
             }
 
             val resp = JSONObject(responseJson)
-            if (resp.optString("status") != "Success" && resp.optString("status") != "success") {
+            val status = resp.optString("status")
+            val isSuccess = when (status) {
+                "EntityCreated", "EntityUpdated", "EntityDeleted", "RelationCreated", "RelationDeleted", "BlobCreated", "Success", "success" -> true
+                else -> false
+            }
+            if (!isSuccess) {
                 return
             }
 
-            val entityType = req.optString("entity_type", if (action == "put_blob") "blob" else "*")
+            val payloadObj = req.optJSONObject("payload")
+            val entityType = payloadObj?.optString("entity_type")
+                ?: req.optString("entity_type", if (action.contains("Blob", ignoreCase = true)) "blob" else "*")
             val recordId = resp.optString("payload", "")
 
             val event = JSONObject().apply {

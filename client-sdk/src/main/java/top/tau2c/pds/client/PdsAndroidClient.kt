@@ -60,6 +60,12 @@ class PdsAndroidClient(private val context: Context) {
 
     private var pdsService: IPdsService? = null
     private var isBound = false
+    private var activeSessionId: String? = null
+
+    /**
+     * Retrieves the current active authenticated session identifier.
+     */
+    fun getSessionId(): String? = activeSessionId
 
     fun interface ChangeListener {
         fun onChanges(changeEventsJson: String)
@@ -116,6 +122,7 @@ class PdsAndroidClient(private val context: Context) {
             context.unbindService(serviceConnection)
             isBound = false
             pdsService = null
+            activeSessionId = null
         }
     }
 
@@ -192,6 +199,162 @@ class PdsAndroidClient(private val context: Context) {
             saveClientId(id)
         }
         return id
+    }
+
+    /**
+     * Authenticates with PDS Core using client credentials and cryptographic challenge-response handshake.
+     * Establishes and stores activeSessionId.
+     */
+    fun authenticate(apiVersion: String = "1.4.0"): String {
+        val service = pdsService ?: throw IllegalStateException("PdsService is not connected")
+        val clientId = getClientId() ?: throw IllegalStateException("Client is not authorized. Request authorization first.")
+
+        // 1. Generate 32-byte secure random client nonce
+        val clientNonce = ByteArray(32)
+        java.security.SecureRandom().nextBytes(clientNonce)
+
+        // 2. Request challenge from PDS Core
+        val challengeRespJson = service.requestChallenge(clientId, clientNonce, apiVersion)
+        val challengeObj = org.json.JSONObject(challengeRespJson)
+        val status = challengeObj.optString("status")
+        if (status != "Challenge") {
+            val err = challengeObj.optString("payload", "Unknown error requesting challenge")
+            throw java.io.IOException("Authentication handshake failed at Challenge step: $err")
+        }
+
+        val challengePayload = challengeObj.getJSONObject("payload")
+        val serverInstanceId = challengePayload.getString("server_instance_id")
+        val negotiatedApiVersion = challengePayload.getString("api_version")
+        val serverNonceArray = challengePayload.getJSONArray("server_nonce")
+        val serverNonce = ByteArray(serverNonceArray.length())
+        for (i in 0 until serverNonceArray.length()) {
+            serverNonce[i] = serverNonceArray.getInt(i).toByte()
+        }
+
+        // 3. Compute signing payload and sign using client identity key
+        val signingPayload = PdsCryptoManager.computeSigningPayload(
+            serverInstanceId = serverInstanceId,
+            clientIdUlidString = clientId,
+            clientNonce = clientNonce,
+            serverNonce = serverNonce,
+            apiVersion = negotiatedApiVersion
+        )
+        val signature = PdsCryptoManager.sign(context, signingPayload)
+
+        // 4. Submit signature to PDS Core
+        val authRespJson = service.authenticateClientWithSignature(clientId, signature)
+        val authObj = org.json.JSONObject(authRespJson)
+        val authStatus = authObj.optString("status")
+        if (authStatus != "Authenticated") {
+            val err = authObj.optString("payload", "Authentication rejected by PDS Core")
+            throw java.io.IOException("Authentication failed: $err")
+        }
+
+        val authPayload = authObj.getJSONObject("payload")
+        val sessionId = authPayload.getString("session_id")
+        this.activeSessionId = sessionId
+        return sessionId
+    }
+
+    /**
+     * Terminates the current active session.
+     */
+    fun closeSession(sessionId: String? = null): Boolean {
+        val targetSession = sessionId ?: activeSessionId ?: return false
+        val req = """{"action":"CloseSession","payload":{"session_id":"$targetSession"}}"""
+        val respJson = executeRawRequest(req)
+        if (targetSession == activeSessionId) {
+            activeSessionId = null
+        }
+        val respObj = org.json.JSONObject(respJson)
+        return respObj.optString("status") == "SessionClosed"
+    }
+
+    /**
+     * Ensures an active session is available, authenticating if necessary.
+     */
+    fun ensureSession(): String {
+        return activeSessionId ?: authenticate()
+    }
+
+    /**
+     * Creates an entity in PDS Core.
+     * @param entityType The entity collection or type name (e.g. "receipts").
+     * @param properties Property map or list conforming to PDS property types.
+     * @param sessionId Optional explicit session ID (defaults to active session).
+     */
+    fun createEntity(
+        entityType: String,
+        properties: org.json.JSONArray,
+        sessionId: String? = null
+    ): String {
+        val session = sessionId ?: ensureSession()
+        val req = """{"action":"CreateEntity","payload":{"session_id":"$session","entity_type":"$entityType","properties":$properties}}"""
+        return executeRawRequest(req)
+    }
+
+    /**
+     * Retrieves an entity by its ULID identifier.
+     */
+    fun getEntity(entityId: String, sessionId: String? = null): String {
+        val session = sessionId ?: ensureSession()
+        val req = """{"action":"GetEntity","payload":{"session_id":"$session","entity_id":"$entityId"}}"""
+        return executeRawRequest(req)
+    }
+
+    /**
+     * Updates an existing entity.
+     */
+    fun updateEntity(
+        entityId: String,
+        setProperties: org.json.JSONArray? = null,
+        removeProperties: org.json.JSONArray? = null,
+        sessionId: String? = null
+    ): String {
+        val session = sessionId ?: ensureSession()
+        val setPart = if (setProperties != null) ""","set_properties":$setProperties""" else ""
+        val removePart = if (removeProperties != null) ""","remove_properties":$removeProperties""" else ""
+        val req = """{"action":"UpdateEntity","payload":{"session_id":"$session","entity_id":"$entityId"$setPart$removePart}}"""
+        return executeRawRequest(req)
+    }
+
+    /**
+     * Deletes an entity by its ULID identifier.
+     */
+    fun deleteEntity(entityId: String, sessionId: String? = null): String {
+        val session = sessionId ?: ensureSession()
+        val req = """{"action":"DeleteEntity","payload":{"session_id":"$session","entity_id":"$entityId"}}"""
+        return executeRawRequest(req)
+    }
+
+    /**
+     * High-level put helper compatible with simple key-value/document stores.
+     * Formats properties into PDS format and creates entity.
+     */
+    fun put(entityType: String, dataJson: String, sessionId: String? = null): String {
+        val session = sessionId ?: ensureSession()
+        val json = org.json.JSONObject(dataJson)
+        val propsArray = org.json.JSONArray()
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val value = json.get(key)
+            val valObj = org.json.JSONObject()
+            when (value) {
+                is Boolean -> valObj.put("Bool", value)
+                is Int -> valObj.put("Integer", value)
+                is Long -> valObj.put("Integer", value)
+                is Double -> valObj.put("Decimal", value.toString())
+                is Float -> valObj.put("Decimal", value.toString())
+                else -> valObj.put("Text", value.toString())
+            }
+            val pair = org.json.JSONArray().apply {
+                put(key)
+                put(valObj)
+            }
+            propsArray.put(pair)
+        }
+        return createEntity(entityType, propsArray, session)
     }
 
     /**
