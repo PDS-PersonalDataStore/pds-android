@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.Window
+import android.util.Log
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -19,6 +20,8 @@ import android.widget.TextView
 class AuthDialogActivity : Activity() {
 
     companion object {
+        private const val TAG = "AuthDialogActivity"
+
         const val ACTION_AUTHORIZE = "top.tau2c.pds.core.REQUEST_AUTHORIZATION"
         const val EXTRA_CLIENT_NAME = "client_name"
         const val EXTRA_PUBLIC_KEY = "public_key"
@@ -158,6 +161,7 @@ class AuthDialogActivity : Activity() {
     private fun handleAuthorize(clientName: String, publicKey: ByteArray?) {
         val service = pdsService
         if (service == null) {
+            Log.e(TAG, "Authorization failed: PdsService is not connected")
             setResult(Activity.RESULT_CANCELED)
             finish()
             return
@@ -168,10 +172,19 @@ class AuthDialogActivity : Activity() {
 
         var clientId: String? = null
         if (publicKey != null && publicKey.size == 32) {
+            Log.i(TAG, "Registering client: clientName=$clientName with public key")
             clientId = service.registerClient(clientName, publicKey)
             if (clientId.isNotEmpty()) {
+                Log.i(TAG, "Approving client: clientId=$clientId, permissions=$selectedPerms")
                 service.approveClient(clientId, permsJsonArray.toString())
+            } else {
+                Log.e(TAG, "Client registration returned empty clientId")
             }
+        } else {
+            Log.w(
+                TAG,
+                "No valid 32-byte public key provided in authorization request: publicKey=${publicKey?.size} bytes. Client will not be registered."
+            )
         }
 
         val resultIntent = Intent().apply {
@@ -180,6 +193,7 @@ class AuthDialogActivity : Activity() {
             }
             putExtra(RESULT_GRANTED_PERMISSIONS, selectedPerms.toTypedArray())
         }
+        Log.i(TAG, "Returning authorization result: clientId=$clientId, permissions=$selectedPerms")
         setResult(Activity.RESULT_OK, resultIntent)
         finish()
     }

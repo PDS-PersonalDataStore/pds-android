@@ -40,17 +40,23 @@ class PdsService : Service() {
         override fun registerClient(clientName: String?, publicKey: ByteArray?): String {
             enforceCallingPermission()
             if (clientName == null || publicKey == null || publicKey.size != 32) {
+                Log.w(TAG, "Rejected client registration: invalid clientName=$clientName or publicKey=${publicKey?.size} bytes")
                 return ""
             }
-            return NativePds.registerClient(clientName, publicKey)
+            val id = NativePds.registerClient(clientName, publicKey)
+            Log.i(TAG, "Registered client application: name=$clientName, clientId=$id")
+            return id
         }
 
         override fun approveClient(clientId: String?, permissionsJson: String?): Boolean {
             enforceCallingPermission()
             if (clientId == null || permissionsJson == null) {
+                Log.w(TAG, "Rejected client approval: clientId=$clientId or permissionsJson=$permissionsJson")
                 return false
             }
-            return NativePds.approveClient(clientId, permissionsJson)
+            val success = NativePds.approveClient(clientId, permissionsJson)
+            Log.i(TAG, "Client approval: clientId=$clientId, success=$success, permissions=$permissionsJson")
+            return success
         }
 
         override fun isReady(): Boolean {
