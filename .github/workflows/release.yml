@@ -34,8 +34,8 @@ jobs:
       - name: Collect SDK artifacts
         run: |
           mkdir -p release-artifacts
-          find client-sdk/build/outputs/aar/ -name "*.aar" -exec cp {} release-artifacts/ \;
-          find client-sdk/build/libs/ -name "*.jar" -exec cp {} release-artifacts/ \;
+          find client-sdk/build/outputs/aar/ -name "*release*.aar" -exec cp {} release-artifacts/ \;
+          find client-sdk/build/intermediates/source_jar/release/ -name "*.jar" -exec cp {} release-artifacts/client-sdk-sources.jar \;
           ls -la release-artifacts/
 
       - name: Create GitHub Release
