@@ -11,58 +11,8 @@ on:
       - develop
 
 jobs:
-  build-native:
-    name: Build Native FFI Libraries (.so)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-          link-to-sdk: true
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,x86_64-linux-android
-
-      - name: Cache cargo binaries and dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/cargo-ndk
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            target
-          key: cargo-ndk-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'pds-ffi/Cargo.toml') }}
-          restore-keys: |
-            cargo-ndk-${{ runner.os }}-
-
-      - name: Install cargo-ndk
-        run: which cargo-ndk || cargo install cargo-ndk
-
-      - name: Build Native FFI libraries
-        run: |
-          mkdir -p jniLibs
-          cargo ndk -t arm64-v8a -t x86_64 -o jniLibs build --release --manifest-path pds-ffi/Cargo.toml
-
-      - name: Upload Native FFI artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: jniLibs
-          path: jniLibs/
-          retention-days: 1
-
-  build-android:
-    name: Build APK and Client SDK AAR
-    needs: build-native
+  build-and-test:
+    name: Build & Test Client SDK (AAR)
     runs-on: ubuntu-latest
 
     steps:
@@ -75,15 +25,10 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Download Native FFI artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: jniLibs
-          path: app/src/main/jniLibs
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Run Tests and Build Packages
+      - name: Run Tests and Build Client SDK AAR
         run: |
-          gradle check assembleRelease --stacktrace
+          gradle check :client-sdk:assembleRelease --stacktrace
+
