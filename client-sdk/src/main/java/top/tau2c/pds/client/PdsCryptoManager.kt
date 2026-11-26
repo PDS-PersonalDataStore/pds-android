@@ -273,117 +273,18 @@ object PdsCryptoManager {
     }
 
     private fun signEd25519(seed: ByteArray, message: ByteArray): ByteArray {
-        val md = java.security.MessageDigest.getInstance("SHA-512")
-        val h = md.digest(seed)
-        h[0] = (h[0].toInt() and 248).toByte()
-        h[31] = (h[31].toInt() and 127).toByte()
-        h[31] = (h[31].toInt() or 64).toByte()
-
-        val a = java.math.BigInteger(1, h.copyOfRange(0, 32).reversedArray())
-        val pub = derivePublicKeyFromSeed(seed)
-
-        // r = SHA512(h[32..64] + message) mod L
-        val l = java.math.BigInteger.valueOf(2).pow(252).add(java.math.BigInteger("27742317777372353535851937790883648493"))
-        md.reset()
-        md.update(h, 32, 32)
-        md.update(message)
-        val rDigest = md.digest()
-        val rScalar = java.math.BigInteger(1, rDigest.reversedArray()).mod(l)
-
-        // R = r * B
-        val p = java.math.BigInteger.valueOf(2).pow(255).subtract(java.math.BigInteger.valueOf(19))
-        val d = java.math.BigInteger("-121665").multiply(java.math.BigInteger("121666").modInverse(p)).mod(p)
-        val bx = java.math.BigInteger("1511222134953540077250115140958853151145401269304185720604611328326514776390")
-        val by = java.math.BigInteger("46316835694926478169428394003475163141307993866256225615783033603165251855960")
-
-        fun edwardsAdd(p1: Pair<java.math.BigInteger, java.math.BigInteger>, p2: Pair<java.math.BigInteger, java.math.BigInteger>): Pair<java.math.BigInteger, java.math.BigInteger> {
-            val (x1, y1) = p1
-            val (x2, y2) = p2
-            val numX = x1.multiply(y2).add(y1.multiply(x2)).mod(p)
-            val denX = java.math.BigInteger.ONE.add(d.multiply(x1).multiply(x2).multiply(y1).multiply(y2)).mod(p)
-            val numY = y1.multiply(y2).add(x1.multiply(x2)).mod(p)
-            val denY = java.math.BigInteger.ONE.subtract(d.multiply(x1).multiply(x2).multiply(y1).multiply(y2)).mod(p)
-            return Pair(numX.multiply(denX.modInverse(p)).mod(p), numY.multiply(denY.modInverse(p)).mod(p))
-        }
-
-        var rPoint = Pair(java.math.BigInteger.ZERO, java.math.BigInteger.ONE)
-        var qPoint = Pair(bx, by)
-        for (i in 0 until 256) {
-            if (rScalar.testBit(i)) {
-                rPoint = edwardsAdd(rPoint, qPoint)
-            }
-            qPoint = edwardsAdd(qPoint, qPoint)
-        }
-
-        val rPointBytes = ByteArray(32)
-        val ry = rPoint.second.toByteArray().reversedArray()
-        System.arraycopy(ry, 0, rPointBytes, 0, minOf(ry.size, 32))
-        if (rPoint.first.testBit(0)) {
-            rPointBytes[31] = (rPointBytes[31].toInt() or 0x80).toByte()
-        }
-
-        // k = SHA512(R + pub + message) mod L
-        md.reset()
-        md.update(rPointBytes)
-        md.update(pub)
-        md.update(message)
-        val kDigest = md.digest()
-        val kScalar = java.math.BigInteger(1, kDigest.reversedArray()).mod(l)
-
-        // S = (r + k * a) mod L
-        val s = rScalar.add(kScalar.multiply(a)).mod(l)
-        val sBytes = ByteArray(32)
-        val sy = s.toByteArray().reversedArray()
-        System.arraycopy(sy, 0, sBytes, 0, minOf(sy.size, 32))
-
-        val sig = ByteArray(64)
-        System.arraycopy(rPointBytes, 0, sig, 0, 32)
-        System.arraycopy(sBytes, 0, sig, 32, 32)
-        return sig
+        val privParams = org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters(seed, 0)
+        val signer = org.bouncycastle.crypto.signers.Ed25519Signer()
+        signer.init(true, privParams)
+        signer.update(message, 0, message.size)
+        return signer.generateSignature()
     }
 
     private fun derivePublicKeyFromSeed(seed: ByteArray): ByteArray {
-        // Derive Ed25519 public key from 32-byte private seed using SHA-512 clamp & Edwards point scalar mul
-        val md = java.security.MessageDigest.getInstance("SHA-512")
-        val h = md.digest(seed)
-        h[0] = (h[0].toInt() and 248).toByte()
-        h[31] = (h[31].toInt() and 127).toByte()
-        h[31] = (h[31].toInt() or 64).toByte()
-
-        val a = java.math.BigInteger(1, h.copyOfRange(0, 32).reversedArray())
-        val p = java.math.BigInteger.valueOf(2).pow(255).subtract(java.math.BigInteger.valueOf(19))
-        val d = java.math.BigInteger("-121665").multiply(java.math.BigInteger("121666").modInverse(p)).mod(p)
-        val bx = java.math.BigInteger("1511222134953540077250115140958853151145401269304185720604611328326514776390")
-        val by = java.math.BigInteger("46316835694926478169428394003475163141307993866256225615783033603165251855960")
-
-        fun edwardsAdd(p1: Pair<java.math.BigInteger, java.math.BigInteger>, p2: Pair<java.math.BigInteger, java.math.BigInteger>): Pair<java.math.BigInteger, java.math.BigInteger> {
-            val (x1, y1) = p1
-            val (x2, y2) = p2
-            val numX = x1.multiply(y2).add(y1.multiply(x2)).mod(p)
-            val denX = java.math.BigInteger.ONE.add(d.multiply(x1).multiply(x2).multiply(y1).multiply(y2)).mod(p)
-            val numY = y1.multiply(y2).add(x1.multiply(x2)).mod(p)
-            val denY = java.math.BigInteger.ONE.subtract(d.multiply(x1).multiply(x2).multiply(y1).multiply(y2)).mod(p)
-            return Pair(numX.multiply(denX.modInverse(p)).mod(p), numY.multiply(denY.modInverse(p)).mod(p))
-        }
-
-        var r = Pair(java.math.BigInteger.ZERO, java.math.BigInteger.ONE)
-        var q = Pair(bx, by)
-        for (i in 0 until 256) {
-            if (a.testBit(i)) {
-                r = edwardsAdd(r, q)
-            }
-            q = edwardsAdd(q, q)
-        }
-
-        // Encode point Y with sign bit of X in MSB of last byte
-        val yBytes = r.second.toByteArray().reversedArray()
-        val pub = ByteArray(32)
-        System.arraycopy(yBytes, 0, pub, 0, minOf(yBytes.size, 32))
-        if (r.first.testBit(0)) {
-            pub[31] = (pub[31].toInt() or 0x80).toByte()
-        }
-        return pub
+        val privParams = org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters(seed, 0)
+        return privParams.generatePublicKey().encoded
     }
+
 
     private fun bytesToHex(bytes: ByteArray): String {
         val hexChars = "0123456789abcdef"
