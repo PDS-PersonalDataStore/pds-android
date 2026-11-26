@@ -1,12 +1,15 @@
-# PDS Android (Personal Data Store for Android)
+# PDS Android Client SDK
 
 [![CI Build & Tests](https://github.com/Tau2C/pds-android/actions/workflows/ci.yml/badge.svg)](https://github.com/Tau2C/pds-android/actions/workflows/ci.yml)
 
-Projekt dostarczający centralną usługę systemową PDS Core na platformę Android (`top.tau2c.pds.core`) oraz bibliotekę kliencką SDK (`top.tau2c.pds.client`) dla aplikacji zewnętrznych.
+Oficjalna biblioteka kliencka Android SDK (`top.tau2c.pds.client`) dla systemu Personal Data Store (PDS). Umożliwia aplikacjom zewnętrznym komunikację z usługą systemową PDS Core (`top.tau2c.pds.core`) przez Android IPC (AIDL / Binder).
+
+Aplikacja PDS Core (usługa systemowa, silnik Rust E2EE) znajduje się w dedykowanym repozytorium:
+[PDS-PersonalDataStore/pds-android-app](https://github.com/PDS-PersonalDataStore/pds-android-app).
 
 ---
 
-## Architektura
+## Architektura integracji
 
 ```text
 +-----------------------+     +-----------------------+
@@ -22,65 +25,28 @@ Projekt dostarczający centralną usługę systemową PDS Core na platformę And
         |       Aplikacja: PDS Core           |
         |      `top.tau2c.pds.core`           |
         |                                     |
-        |  +-------------------------------+  |
-        |  |  PdsService (Bound Service)   |  |
-        |  +---------------+---------------+  |
-        |                  | (JNI)            |
-        |                  v                  |
-        |  +-------------------------------+  |
-        |  |  libpds_ffi.so (Rust cdylib)  |  |
-        |  |  - DAG / CAS Blobs / E2EE     |  |
-        |  |  - Sync P2P / IPC Server      |  |
-        |  +-------------------------------+  |
-        |                  |                  |
-        |                  v                  |
-        |  +-------------------------------+  |
-        |  |  Prywatny magazyn aplikacji   |  |
-        |  |  /data/data/top.tau2c.pds.core|  |
-        |  +-------------------------------+  |
+        |      PdsService (Bound Service)     |
         +-------------------------------------+
 ```
 
 ---
 
-## Moduły projektu
+## Instalacja SDK
 
-1. **`pds-ffi/`**:
-   - Crate Rust typu `cdylib` i `rlib`.
-   - Łączy się z silnikiem `pds-rs` i udostępnia eksporty JNI dla Androida:
-     - `Java_top_tau2c_pds_core_NativePds_init`
-     - `Java_top_tau2c_pds_core_NativePds_handleIpcRequestJson`
-     - `Java_top_tau2c_pds_core_NativePds_registerClient`
-     - `Java_top_tau2c_pds_core_NativePds_approveClient`
+Dodaj bibliotekę do pliku `build.gradle.kts`:
 
-2. **`app/` (`top.tau2c.pds.core`)**:
-   - Centralna aplikacja Androida z usługą `PdsService` (`Bound Service`).
-   - Weryfikuje tożsamość wywołującego UID (`Binder.getCallingUid()`).
-   - Udostępnia interfejs AIDL: `top.tau2c.pds.core.IPdsService`.
-
-3. **`client-sdk/` (`top.tau2c.pds.client`)**:
-   - Biblioteka Android AAR przeznaczona do załączenia w aplikacjach trzecich.
-   - Zawiera klasę `PdsAndroidClient` zarządzającą łączeniem z `top.tau2c.pds.core.PDS_SERVICE`.
-
----
-
-## Budowanie natywnej biblioteki Rust dla Androida
-
-Wymaga zainstalowanego Android NDK oraz narzędzia `cargo-ndk`:
-
-```bash
-cargo install cargo-ndk
-rustup target add aarch64-linux-android x86_64-linux-android
-
-# Kompilacja dla urządzeń ARM64 i emulatora x86_64:
-cargo ndk -t arm64-v8a -t x86_64 -o app/src/main/jniLibs build --release --manifest-path pds-ffi/Cargo.toml
+```kotlin
+dependencies {
+    implementation("top.tau2c.pds:client-sdk:0.9.0")
+}
 ```
 
 ---
 
 ## Sposób użycia w aplikacji klienckiej
 
-1. Dodaj uprawnienie w `AndroidManifest.xml`:
+1. Dodaj deklaracje w `AndroidManifest.xml`:
+
 ```xml
 <uses-permission android:name="top.tau2c.pds.permission.ACCESS_PDS" />
 
@@ -89,32 +55,25 @@ cargo ndk -t arm64-v8a -t x86_64 -o app/src/main/jniLibs build --release --manif
 </queries>
 ```
 
-2. Połącz się z usługą:
+2. Połącz się z usługą w kodzie Kotlin:
+
 ```kotlin
 val pdsClient = PdsAndroidClient(context)
-if (pdsClient.connect()) {
+val connected = pdsClient.connect()
+if (connected) {
     // Połączono z PDS Core
 }
 ```
 
 ---
 
-## Instalacja aplikacji PDS Core
+## Budowanie biblioteki
 
-Aplikacja PDS Core jest dostępna w dedykowanym repozytorium F-Droid.
+Projekt wymaga środowiska Java JDK 17 i systemu Gradle (brak zależności od NDK / Rust):
 
-### Dodanie repozytorium do klienta F-Droid
-
-Kliknij poniższy link na urządzeniu z systemem Android, aby dodać repozytorium:
-
-[Dodaj do F-Droid](https://Tau2C.github.io/fdroid-repo/fdroid/repo?fingerprint=CF7B5AA087E06C58AB4F0EEFF8BE0AFEBE15EB167416EC11EDD69AA23C4CFE38)
-
-Możesz także dodać repozytorium ręcznie:
-
-- **Adres**: `https://Tau2C.github.io/fdroid-repo/fdroid/repo`
-- **Odcisk klucza (SHA-256)**: `CF 7B 5A A0 87 E0 6C 58 AB 4F 0E EF F8 BE 0A FE BE 15 EB 16 74 16 EC 11 ED D6 9A A2 3C 4C FE 38`
-
-Po dodaniu repozytorium wyszukaj i zainstaluj pakiet `PDS Core` (`top.tau2c.pds.core`).
+```bash
+gradle check :client-sdk:assembleRelease
+```
 
 ---
 
@@ -125,3 +84,4 @@ Po dodaniu repozytorium wyszukaj i zainstaluj pakiet `PDS Core` (`top.tau2c.pds.
 - [Referencja API klienta](docs/api-reference.md)
 - [Powiadomienia w czasie rzeczywistym (Pub/Sub)](docs/pubsub.md)
 - [Kolejka offline i trwały kursor](docs/offline-queue.md)
+
