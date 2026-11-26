@@ -126,9 +126,25 @@ object PdsCryptoManager {
     }
 
     /**
+     * Explicitly saves a 32-byte Ed25519 private key seed into encrypted private storage.
+     */
+    @Synchronized
+    fun saveIdentityPrivateKey(context: android.content.Context, privateKeySeed: ByteArray) {
+        require(privateKeySeed.size == 32) { "Ed25519 private key seed must be exactly 32 bytes" }
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val encryptedBytes = encrypt(privateKeySeed, "pds_identity_master_key")
+        prefs.edit().putString(KEY_PRIVATE_KEY, bytesToHex(encryptedBytes)).apply()
+
+        // Derive and store matching public key
+        val publicKey = derivePublicKeyFromSeed(privateKeySeed)
+        prefs.edit().putString(KEY_PUBLIC_KEY, bytesToHex(publicKey)).apply()
+    }
+
+    /**
      * Stores the registered clientId returned from PDS authorization.
      */
     fun saveClientId(context: android.content.Context, clientId: String) {
+
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_CLIENT_ID, clientId).apply()
     }
