@@ -1,4 +1,4 @@
-name: Build & Release Android Packages
+name: Build & Release Client SDK AAR
 
 on:
   push:
@@ -6,62 +6,13 @@ on:
       - 'v*'
 
 jobs:
-  build-native:
-    name: Build Native FFI Libraries (.so)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-          link-to-sdk: true
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,x86_64-linux-android
-
-      - name: Cache cargo binaries and dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/cargo-ndk
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            target
-          key: cargo-ndk-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'pds-ffi/Cargo.toml') }}
-          restore-keys: |
-            cargo-ndk-${{ runner.os }}-
-
-      - name: Install cargo-ndk
-        run: which cargo-ndk || cargo install cargo-ndk
-
-      - name: Build Native FFI libraries
-        run: |
-          mkdir -p jniLibs
-          cargo ndk -t arm64-v8a -t x86_64 -o jniLibs build --release --manifest-path pds-ffi/Cargo.toml
-
-      - name: Upload Native FFI artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: jniLibs
-          path: jniLibs/
-          retention-days: 1
-
   build-and-release:
-    name: Build APK, AAR & Create Release
-    needs: build-native
+    name: Build & Release Client SDK AAR
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -73,37 +24,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Download Native FFI artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: jniLibs
-          path: app/src/main/jniLibs
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Decode signing keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      - name: Build Client SDK AAR & Sources
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
-            echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/release.keystore" >> $GITHUB_ENV
-          fi
+          gradle :client-sdk:assembleRelease :client-sdk:sourcesJar --stacktrace
 
-      - name: Build APK and Client SDK AAR
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          gradle assembleRelease --stacktrace
-
-      - name: Collect build artifacts
+      - name: Collect SDK artifacts
         run: |
           mkdir -p release-artifacts
-          find . -name "*.apk" -exec cp {} release-artifacts/ \;
-          find . -name "*.aar" -exec cp {} release-artifacts/ \;
+          find client-sdk/build/outputs/aar/ -name "*.aar" -exec cp {} release-artifacts/ \;
+          find client-sdk/build/libs/ -name "*.jar" -exec cp {} release-artifacts/ \;
           ls -la release-artifacts/
 
       - name: Create GitHub Release
@@ -114,15 +46,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           generate_release_notes: true
 
-      - name: Trigger F-Droid Repo Update
-        if: ${{ env.FDROID_REPO_TOKEN != '' && !contains(github.ref_name, '-dev') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
-        uses: peter-evans/repository-dispatch@v3
-        env:
-          FDROID_REPO_TOKEN: ${{ secrets.FDROID_REPO_TOKEN }}
-        with:
-          token: ${{ secrets.FDROID_REPO_TOKEN }}
-          repository: Tau2C/fdroid-repo
-          event-type: new-release
 
 
 

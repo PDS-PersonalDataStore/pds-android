@@ -14,5 +14,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "pds-android"
-include(":app")
 include(":client-sdk")
+
