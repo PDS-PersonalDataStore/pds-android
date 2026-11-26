@@ -29,7 +29,7 @@ jobs:
 
       - name: Build Client SDK AAR & Sources
         run: |
-          gradle :client-sdk:assembleRelease :client-sdk:sourcesJar --stacktrace
+          gradle :client-sdk:assembleRelease :client-sdk:sourceReleaseJar --stacktrace
 
       - name: Collect SDK artifacts
         run: |
