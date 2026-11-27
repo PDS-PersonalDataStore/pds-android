@@ -398,35 +398,7 @@ class PdsAndroidClient(private val context: Context) {
         return executeRawRequest(req)
     }
 
-    /**
-     * High-level put helper compatible with simple key-value/document stores.
-     * Formats properties into PDS format and creates entity.
-     */
-    fun put(entityType: String, dataJson: String, sessionId: String? = null): String {
-        val session = sessionId ?: ensureSession()
-        val json = org.json.JSONObject(dataJson)
-        val propsArray = org.json.JSONArray()
-        val keys = json.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val value = json.get(key)
-            val valObj = org.json.JSONObject()
-            when (value) {
-                is Boolean -> valObj.put("Bool", value)
-                is Int -> valObj.put("Integer", value)
-                is Long -> valObj.put("Integer", value)
-                is Double -> valObj.put("Decimal", value.toString())
-                is Float -> valObj.put("Decimal", value.toString())
-                else -> valObj.put("Text", value.toString())
-            }
-            val pair = org.json.JSONArray().apply {
-                put(key)
-                put(valObj)
-            }
-            propsArray.put(pair)
-        }
-        return createEntity(entityType, propsArray, session)
-    }
+
 
     /**
      * Checks if PDS storage engine is ready.
